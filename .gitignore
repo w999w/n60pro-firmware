@@ -1,0 +1,4 @@
+/openwrt/
+/output/
+*.download
+__pycache__/
