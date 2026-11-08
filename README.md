@@ -10,6 +10,8 @@ Start the **Build N60 Pro 2GB** workflow from Actions (or push a build configura
 
 This repository contains no subscriptions, passwords, router backups, private domain overrides, fixed MACs or disk UUIDs. Existing private settings must be migrated separately. No script flashes a router, changes its bootloader or formats a disk. Never feed a raw MTD backup to the upgrade UI. Confirm bootloader/partition compatibility before installing any image.
 
+Default LAN / management address: **192.168.100.1/24**. Clients using DHCP receive addresses from the 192.168.100.0/24 subnet. This first-boot default is not a migration script for old private backups.
+
 Base source: https://github.com/padavanonly/immortalwrt-mt798x-6.6
 OpenClash: https://github.com/vernesong/OpenClash
 iStore: https://github.com/istoreos/istore

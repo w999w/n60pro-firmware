@@ -78,6 +78,10 @@ uci set system.@system[0].hostname=N60Pro
 uci set system.@system[0].timezone=CST-8
 uci set system.@system[0].zonename=Asia/Shanghai
 uci commit system
+uci set network.lan.proto=static
+uci set network.lan.ipaddr=192.168.100.1
+uci set network.lan.netmask=255.255.255.0
+uci commit network
 uci -q set openclash.config.enable=0
 uci -q set openclash.config.core_type=Smart
 uci -q commit openclash
