@@ -137,6 +137,11 @@ for stanza in metadata.split('\n\n'):
         definitions.setdefault(name.group(1),[]).append(stanza)
 duplicates={name:len(definitions[name]) for name in selected if len(definitions.get(name,[]))>1}
 assert not duplicates, f'Duplicate selected package definitions: {duplicates}'
+provided=set(selected)
+for name in selected:
+    for stanza in definitions.get(name,[]):
+        for aliases in re.findall(r'^Provides: (.+)$',stanza,re.M):
+            provided.update(alias.split('=')[0].lstrip('@') for alias in aliases.replace(',',' ').split())
 missing=[]
 for name in selected:
     for stanza in definitions.get(name,[]):
@@ -146,7 +151,7 @@ for name in selected:
                 # check only unconditional, direct package dependencies here.
                 if dep.startswith('+') and not any(c in dep for c in ':@|()'):
                     dep=dep[1:]
-                    if dep not in selected:
+                    if dep not in provided:
                         missing.append((name,dep))
 assert not missing, f'Selected packages have unselected direct dependencies: {missing}'
 (OUT/'preflight.json').write_text(json.dumps({'series':LOCK.get('series'),'firmware_commit':LOCK['firmware']['commit'],'selected_package_count':len(selected),'duplicate_definitions':duplicates,'missing_direct_dependencies':missing,'lan':'192.168.100.1','full_compile_completed':False},indent=2))
