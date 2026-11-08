@@ -94,7 +94,7 @@ uci -q commit openclash
 uci -q set AdGuardHome.AdGuardHome.enabled=0
 uci -q set AdGuardHome.AdGuardHome.redirect=none
 uci -q commit AdGuardHome
-for svc in openclash AdGuardHome mosdns ksmbd watchcat; do
+for svc in openclash AdGuardHome mosdns bandix collectd ksmbd watchcat hd-idle taskplan; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc disable
 done
 exit 0
