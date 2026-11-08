@@ -94,8 +94,15 @@ uci -q commit openclash
 uci -q set AdGuardHome.AdGuardHome.enabled=0
 uci -q set AdGuardHome.AdGuardHome.redirect=none
 uci -q commit AdGuardHome
-for svc in openclash AdGuardHome mosdns bandix collectd ksmbd watchcat hd-idle taskplan; do
+uci -q set bandix.traffic.enabled=1
+uci -q set bandix.traffic.traffic_enable_storage=0
+uci -q set bandix.general.data_dir=/tmp/bandix
+uci -q commit bandix
+for svc in openclash AdGuardHome mosdns ksmbd watchcat hd-idle taskplan; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc disable
+done
+for svc in bandix collectd; do
+    [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc enable
 done
 exit 0
 ''')
