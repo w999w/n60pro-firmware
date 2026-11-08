@@ -5,6 +5,7 @@ import gzip, hashlib, json, pathlib, re, shutil, subprocess, tarfile, urllib.req
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / 'openwrt'
 LOCK = json.loads((ROOT/'source-lock.json').read_text(encoding='utf-8-sig'))
+MODERN = LOCK.get('series') == '25.12'
 OUT = ROOT/'output'
 OUT.mkdir(exist_ok=True)
 
@@ -25,18 +26,18 @@ feeds['istore']=LOCK['istore']
 run('./scripts/feeds','update','-a',cwd=SRC)
 run('./scripts/feeds','install','-a',cwd=SRC)
 
-for key, dest in [('openclash','openclash-src'),('adguard_luci','luci-app-adguardhome'),('argon','luci-theme-argon')]:
+for key, dest in [('openclash','openclash-src'),('adguard_luci','luci-app-adguardhome'),('argon','luci-theme-argon')] + [(k,k+'-src') for k in LOCK.get('extra_packages',[])]:
     checkout(LOCK[key], SRC/'package/custom'/dest)
 # Feed copies of the legacy Argon packages must not shadow the pinned v3 theme.
 # The v3 theme itself owns the argon-config translation package; leaving the
 # legacy config app installed makes opkg resolve that translation to a missing
 # luci-app-argon-config dependency during image assembly.
-for name in ('luci-theme-argon', 'luci-app-argon-config'):
+for name in ('luci-theme-argon', 'luci-app-argon-config', 'luci-app-mosdns', 'mosdns', 'geo2txt'):
     for p in (SRC/'package/feeds').rglob(name):
         if p.is_symlink(): p.unlink()
 
 # Start with upstream's MTK radio settings, discarding its multi-device targets.
-base=(SRC/'defconfig/mt7975-ipailna-high-power.config').read_text()
+base='' if MODERN else (SRC/'defconfig/mt7975-ipailna-high-power.config').read_text()
 base='\n'.join(l for l in base.splitlines() if not l.startswith(('CONFIG_TARGET_', 'CONFIG_HAS_SUBTARGETS=')))
 (SRC/'.config').write_text(base+'\n'+(ROOT/'config/extra.config').read_text())
 
@@ -51,9 +52,10 @@ text=mk.read_text()
 match=re.search(r'define Device/netcore_n60-pro\n.*?\nendef',text,re.S)
 assert match, 'N60 profile missing'
 block=match.group()
-assert 'sysupgrade.bin' in block and 'kmod-mt7915e' in block
+assert ('sysupgrade.itb' if MODERN else 'sysupgrade.bin') in block and 'kmod-mt7915e' in block
 patched=block.replace('kmod-mt7915e kmod-mt7986-firmware mt7986-wo-firmware','kmod-mt_wifi kmod-warp')
-mk.write_text(text[:match.start()]+patched+text[match.end():])
+if not MODERN:
+    mk.write_text(text[:match.start()]+patched+text[match.end():])
 
 # Ship the two verified arm64 cores, with no subscriptions or personal settings.
 for key in ['smart_core','adguard_core']:
@@ -92,7 +94,7 @@ uci -q commit openclash
 uci -q set AdGuardHome.AdGuardHome.enabled=0
 uci -q set AdGuardHome.AdGuardHome.redirect=none
 uci -q commit AdGuardHome
-for svc in openclash AdGuardHome cloudflared ipsec ipsec-vpnd ksmbd watchcat timewol ttyd; do
+for svc in openclash AdGuardHome mosdns ksmbd watchcat; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc disable
 done
 exit 0
@@ -101,8 +103,36 @@ defaults.chmod(0o755)
 run('make','defconfig',cwd=SRC)
 config=(SRC/'.config').read_text()
 required=['TARGET_mediatek_filogic_DEVICE_netcore_n60-pro','PACKAGE_luci-app-store','PACKAGE_luci-app-openclash','PACKAGE_luci-app-adguardhome','PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol','PACKAGE_luci-app-ksmbd','PACKAGE_luci-theme-argon','PACKAGE_luci-i18n-argon-config-zh-cn']
+if MODERN:
+    required=[s for s in required if s not in ('PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol')]
+    required += ['PACKAGE_kmod-mt7915e']
+    required += [l.strip().split('=')[0].removeprefix('CONFIG_') for l in (ROOT/'config/extra.config').read_text().splitlines() if l.startswith('CONFIG_PACKAGE_') and l.endswith('=y')]
 for sym in required:
     assert f'CONFIG_{sym}=y' in config, f'Mandatory symbol lost: {sym}'
+assert 'CONFIG_CCACHE=y' in config, 'Compiler cache was not enabled'
+# Check selected package definitions before any expensive compilation starts.
+selected=set(re.findall(r'^CONFIG_PACKAGE_(.+)=y$',config,re.M))
+metadata=(SRC/'tmp/.packageinfo').read_text()
+definitions={}
+for stanza in metadata.split('\n\n'):
+    name=re.search(r'^Package: (.+)$',stanza,re.M)
+    if name:
+        definitions.setdefault(name.group(1),[]).append(stanza)
+duplicates={name:len(definitions[name]) for name in selected if len(definitions.get(name,[]))>1}
+assert not duplicates, f'Duplicate selected package definitions: {duplicates}'
+missing=[]
+for name in selected:
+    for stanza in definitions.get(name,[]):
+        for deps in re.findall(r'^Depends: (.+)$',stanza,re.M):
+            for dep in deps.split():
+                # Conditional/virtual dependencies are resolved by Kconfig;
+                # check only unconditional, direct package dependencies here.
+                if dep.startswith('+') and not any(c in dep for c in ':@|()'):
+                    dep=dep[1:]
+                    if dep not in selected:
+                        missing.append((name,dep))
+assert not missing, f'Selected packages have unselected direct dependencies: {missing}'
+(OUT/'preflight.json').write_text(json.dumps({'series':LOCK.get('series'),'firmware_commit':LOCK['firmware']['commit'],'selected_package_count':len(selected),'duplicate_definitions':duplicates,'missing_direct_dependencies':missing,'lan':'192.168.100.1','full_compile_completed':False},indent=2))
 shutil.copy2(SRC/'.config',OUT/'build.config')
 with (OUT/'diffconfig').open('w') as f: subprocess.run(['./scripts/diffconfig.sh'],cwd=SRC,stdout=f,check=True)
 for name in ['source-lock.json','feeds-lock.json']: shutil.copy2(ROOT/name,OUT/name)

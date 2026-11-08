@@ -1,18 +1,22 @@
 {
-  "routing": {
-    "url": "https://github.com/openwrt/routing.git",
-    "commit": "00619bc7bc60d8b67ecc490121e45298b122cd6e"
+  "packages": {
+    "url": "https://github.com/immortalwrt/packages.git",
+    "commit": "84bd86384928955b568988ca0e09e2c78c75173d"
   },
   "luci": {
     "url": "https://github.com/immortalwrt/luci.git",
-    "commit": "d72e293e6fd698af75510b9018fb7e154ae219cc"
+    "commit": "d6167ea0645cbd1327708d85f94824f42d0eb872"
+  },
+  "routing": {
+    "url": "https://github.com/openwrt/routing.git",
+    "commit": "e49d76035aafb85ddc993b59271d8c7ba56b5362"
   },
   "telephony": {
     "url": "https://github.com/openwrt/telephony.git",
-    "commit": "695f4f4a733dfaf10922d24bf9dbdfd509b8a6d4"
+    "commit": "2618106d5846a4a542fdf5809f0d3ed228ce439b"
   },
-  "packages": {
-    "url": "https://github.com/immortalwrt/packages.git",
-    "commit": "171d5f9203379f77693807d7283515a873f95df9"
+  "video": {
+    "url": "https://github.com/openwrt/video.git",
+    "commit": "094bf58da6682f895255a35a84349a79dab4bf95"
   }
 }

@@ -1,6 +1,11 @@
-name: Build N60 Pro 2GB
+name: Build N60 Pro 25.12 2GB
 on:
   workflow_dispatch:
+    inputs:
+      full_build:
+        description: '预检通过后才勾选：执行完整固件编译'
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ['.github/workflows/build.yml', 'scripts/**', 'config/**', '*-lock.json']
@@ -18,13 +23,27 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Restore download and compiler caches
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            openwrt/dl
+            /home/runner/.ccache
+          key: n60pro-2512-${{ runner.os }}-${{ hashFiles('*-lock.json', 'config/extra.config') }}-${{ github.run_id }}
+          restore-keys: |
+            n60pro-2512-${{ runner.os }}-${{ hashFiles('*-lock.json', 'config/extra.config') }}-
+            n60pro-2512-${{ runner.os }}-
       - name: Build dependencies
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
           sudo apt-get update
           sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev libelf-dev python3 python3-setuptools python3-pip rsync unzip zlib1g-dev file wget curl zstd swig xsltproc qemu-utils autoconf automake libtool pkgconf time
           df -h .
+          sudo apt-get install -y ccache cmake cpio device-tree-compiler gperf help2man libgmp-dev libmpc-dev libmpfr-dev libreadline-dev libyaml-dev lld llvm ninja-build python3-ply python3-docutils python3-pyelftools re2c squashfs-tools texinfo xmlto
       - name: Prepare pinned sources and configuration
+        env:
+          CCACHE_MAXSIZE: 2G
+          CCACHE_BASEDIR: ${{ github.workspace }}/openwrt
         run: |
           mkdir -p output
           python3 scripts/prepare.py 2>&1 | tee output/prepare.log
@@ -33,17 +52,22 @@ jobs:
           cd openwrt
           make download -j8 2>&1 | tee ../output/download.log
       - name: Compile
+        if: github.event_name == 'workflow_dispatch' && inputs.full_build
+        env:
+          CCACHE_MAXSIZE: 2G
+          CCACHE_BASEDIR: ${{ github.workspace }}/openwrt
         run: |
           cd openwrt
           make -j"$(nproc)" 2>&1 | tee ../output/build.log || make -j1 V=s 2>&1 | tee ../output/build-retry.log
       - name: Collect firmware and checksums
+        if: github.event_name == 'workflow_dispatch' && inputs.full_build
         run: |
           python3 scripts/collect.py
       - name: Upload firmware and diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: n60pro-2gb-${{ github.run_number }}
+          name: n60pro-25.12-2gb-${{ github.run_number }}
           path: output/
           retention-days: 14
           if-no-files-found: error

@@ -1,9 +1,53 @@
 {
-  "firmware": {"url":"https://github.com/padavanonly/immortalwrt-mt798x-6.6.git","commit":"ec9ef10efc65da1e6d1de4e2c043c0e13d08eed8"},
-  "openclash": {"url":"https://github.com/vernesong/OpenClash.git","commit":"e553e82e01c697aefbe1555261a503f425e00ccd"},
-  "istore": {"url":"https://github.com/istoreos/istore.git","commit":"a97ace34f2da358a015b094d326bba2697697f2e"},
-  "adguard_luci": {"url":"https://github.com/rufengsuixing/luci-app-adguardhome.git","commit":"37fdf502b99328b37c9ef4c4387f069f67253f85"},
-  "argon": {"url":"https://github.com/jerrykuku/luci-theme-argon.git","commit":"c6d63bd68aa9272e40c35cee5e615f45cc1e4eb0"},
-  "smart_core":{"url":"https://github.com/vernesong/mihomo/releases/download/Prerelease-Alpha/mihomo-linux-arm64-alpha-smart-96feb2a.gz","sha256":"9679493faf0abcb4595293c1fdc844c4d58bedc917b37fa6499b0be484fb00d3"},
-  "adguard_core":{"url":"https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.80/AdGuardHome_linux_arm64.tar.gz","sha256":"d5e17d0d724418ddef8b7723ed8ade7eef4e621ec5b0e43a341859cca71a3d8f"}
+  "firmware": {
+    "url": "https://github.com/immortalwrt/immortalwrt.git",
+    "commit": "4fc16f2985a358bd43bb522e43f05395fcbd6ed5"
+  },
+  "openclash": {
+    "url": "https://github.com/vernesong/OpenClash.git",
+    "commit": "e553e82e01c697aefbe1555261a503f425e00ccd"
+  },
+  "istore": {
+    "url": "https://github.com/istoreos/istore.git",
+    "commit": "a97ace34f2da358a015b094d326bba2697697f2e"
+  },
+  "adguard_luci": {
+    "url": "https://github.com/rufengsuixing/luci-app-adguardhome.git",
+    "commit": "37fdf502b99328b37c9ef4c4387f069f67253f85"
+  },
+  "argon": {
+    "url": "https://github.com/jerrykuku/luci-theme-argon.git",
+    "commit": "c6d63bd68aa9272e40c35cee5e615f45cc1e4eb0"
+  },
+  "smart_core": {
+    "url": "https://github.com/vernesong/mihomo/releases/download/Prerelease-Alpha/mihomo-linux-arm64-alpha-smart-96feb2a.gz",
+    "sha256": "9679493faf0abcb4595293c1fdc844c4d58bedc917b37fa6499b0be484fb00d3"
+  },
+  "adguard_core": {
+    "url": "https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.80/AdGuardHome_linux_arm64.tar.gz",
+    "sha256": "d5e17d0d724418ddef8b7723ed8ade7eef4e621ec5b0e43a341859cca71a3d8f"
+  },
+  "series": "25.12",
+  "extra_packages": [
+    "mosdns",
+    "taskplan",
+    "bandix_ui",
+    "bandix_core"
+  ],
+  "mosdns": {
+    "url": "https://github.com/sbwml/luci-app-mosdns.git",
+    "commit": "dbdd91ab8ac8b079b6a3ca1a48d99e970d17111b"
+  },
+  "taskplan": {
+    "url": "https://github.com/sirpdboy/luci-app-taskplan.git",
+    "commit": "babd67a496a592ad9bd625fbc08db804cff45ab9"
+  },
+  "bandix_ui": {
+    "url": "https://github.com/timsaya/luci-app-bandix.git",
+    "commit": "108369b8da05f01296a3ed0210a2ab60809712e5"
+  },
+  "bandix_core": {
+    "url": "https://github.com/timsaya/openwrt-bandix.git",
+    "commit": "0760d1f5b52d1a2317dfd171ab00fe6543a9a0c4"
+  }
 }
