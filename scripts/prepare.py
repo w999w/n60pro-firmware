@@ -65,7 +65,9 @@ for key in ['smart_core','adguard_core']:
         dest=SRC/'files/usr/bin/AdGuardHome/AdGuardHome'
         dest.parent.mkdir(parents=True,exist_ok=True)
         with tarfile.open(archive,'r:gz') as tar:
-            with tar.extractfile('AdGuardHome/AdGuardHome') as src, dest.open('wb') as dst: shutil.copyfileobj(src,dst)
+            members=[m for m in tar.getmembers() if m.isfile() and m.name.removeprefix('./')=='AdGuardHome/AdGuardHome']
+            assert len(members)==1, 'Unexpected AdGuard archive layout'
+            with tar.extractfile(members[0]) as src, dest.open('wb') as dst: shutil.copyfileobj(src,dst)
     dest.chmod(0o755)
     archive.unlink()
 
