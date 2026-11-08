@@ -35,7 +35,7 @@ jobs:
       - name: Compile
         run: |
           cd openwrt
-          make -j2 2>&1 | tee ../output/build.log || make -j1 V=s 2>&1 | tee ../output/build-retry.log
+          make -j"$(nproc)" 2>&1 | tee ../output/build.log || make -j1 V=s 2>&1 | tee ../output/build-retry.log
       - name: Collect firmware and checksums
         run: |
           python3 scripts/collect.py

@@ -27,9 +27,13 @@ run('./scripts/feeds','install','-a',cwd=SRC)
 
 for key, dest in [('openclash','openclash-src'),('adguard_luci','luci-app-adguardhome'),('argon','luci-theme-argon')]:
     checkout(LOCK[key], SRC/'package/custom'/dest)
-# A same-named feed symlink must not shadow our pinned theme.
-for p in (SRC/'package/feeds').rglob('luci-theme-argon'):
-    if p.is_symlink(): p.unlink()
+# Feed copies of the legacy Argon packages must not shadow the pinned v3 theme.
+# The v3 theme itself owns the argon-config translation package; leaving the
+# legacy config app installed makes opkg resolve that translation to a missing
+# luci-app-argon-config dependency during image assembly.
+for name in ('luci-theme-argon', 'luci-app-argon-config'):
+    for p in (SRC/'package/feeds').rglob(name):
+        if p.is_symlink(): p.unlink()
 
 # Start with upstream's MTK radio settings, discarding its multi-device targets.
 base=(SRC/'defconfig/mt7975-ipailna-high-power.config').read_text()
@@ -96,7 +100,7 @@ exit 0
 defaults.chmod(0o755)
 run('make','defconfig',cwd=SRC)
 config=(SRC/'.config').read_text()
-required=['TARGET_mediatek_filogic_DEVICE_netcore_n60-pro','PACKAGE_luci-app-store','PACKAGE_luci-app-openclash','PACKAGE_luci-app-adguardhome','PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol','PACKAGE_luci-app-ksmbd','PACKAGE_luci-theme-argon']
+required=['TARGET_mediatek_filogic_DEVICE_netcore_n60-pro','PACKAGE_luci-app-store','PACKAGE_luci-app-openclash','PACKAGE_luci-app-adguardhome','PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol','PACKAGE_luci-app-ksmbd','PACKAGE_luci-theme-argon','PACKAGE_luci-i18n-argon-config-zh-cn']
 for sym in required:
     assert f'CONFIG_{sym}=y' in config, f'Mandatory symbol lost: {sym}'
 shutil.copy2(SRC/'.config',OUT/'build.config')
