@@ -109,6 +109,53 @@ exit 0
 defaults.chmod(0o755)
 run('make','defconfig',cwd=SRC)
 config=(SRC/'.config').read_text()
+# Keep real Kconfig diagnostics even when an assertion aborts preparation.
+for name in ['.config','tmp/.packageinfo','tmp/.config-package.in']:
+    path=SRC/name
+    if path.exists(): shutil.copy2(path,OUT/('diagnostic-'+path.name.lstrip('.')))
+for name in ['luci-app-store','luci-lib-taskd','taskd','luci-lib-xterm']:
+    meta=(SRC/'tmp/.packageinfo').read_text()
+    match=re.search(r'^Package: '+re.escape(name)+r'\n.*?(?=\nPackage: |\Z)',meta,re.M|re.S)
+    print('DEPENDENCY DIAGNOSTIC',name,match.group(0)[:3000] if match else 'NOT IN PACKAGE METADATA',flush=True)
+missing_symbols=[sym for sym in re.findall(r'^CONFIG_PACKAGE_(.+)=y
+required=['TARGET_mediatek_filogic_DEVICE_netcore_n60-pro','PACKAGE_luci-app-store','PACKAGE_luci-app-openclash','PACKAGE_luci-app-adguardhome','PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol','PACKAGE_luci-app-ksmbd','PACKAGE_luci-theme-argon','PACKAGE_luci-i18n-argon-config-zh-cn']
+if MODERN:
+    required=[s for s in required if s not in ('PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol')]
+    required += ['PACKAGE_kmod-mt7915e']
+    required += [l.strip().split('=')[0].removeprefix('CONFIG_') for l in (ROOT/'config/extra.config').read_text().splitlines() if l.startswith('CONFIG_PACKAGE_') and l.endswith('=y')]
+for sym in required:
+    assert f'CONFIG_{sym}=y' in config, f'Mandatory symbol lost: {sym}'
+assert 'CONFIG_CCACHE=y' in config, 'Compiler cache was not enabled'
+# Check selected package definitions before any expensive compilation starts.
+selected=set(re.findall(r'^CONFIG_PACKAGE_(.+)=y$',config,re.M))
+metadata=(SRC/'tmp/.packageinfo').read_text()
+definitions={}
+for stanza in metadata.split('\n\n'):
+    name=re.search(r'^Package: (.+)$',stanza,re.M)
+    if name:
+        definitions.setdefault(name.group(1),[]).append(stanza)
+duplicates={name:len(definitions[name]) for name in selected if len(definitions.get(name,[]))>1}
+assert not duplicates, f'Duplicate selected package definitions: {duplicates}'
+missing=[]
+for name in selected:
+    for stanza in definitions.get(name,[]):
+        for deps in re.findall(r'^Depends: (.+)$',stanza,re.M):
+            for dep in deps.split():
+                # Conditional/virtual dependencies are resolved by Kconfig;
+                # check only unconditional, direct package dependencies here.
+                if dep.startswith('+') and not any(c in dep for c in ':@|()'):
+                    dep=dep[1:]
+                    if dep not in selected:
+                        missing.append((name,dep))
+assert not missing, f'Selected packages have unselected direct dependencies: {missing}'
+(OUT/'preflight.json').write_text(json.dumps({'series':LOCK.get('series'),'firmware_commit':LOCK['firmware']['commit'],'selected_package_count':len(selected),'duplicate_definitions':duplicates,'missing_direct_dependencies':missing,'lan':'192.168.100.1','full_compile_completed':False},indent=2))
+shutil.copy2(SRC/'.config',OUT/'build.config')
+with (OUT/'diffconfig').open('w') as f: subprocess.run(['./scripts/diffconfig.sh'],cwd=SRC,stdout=f,check=True)
+for name in ['source-lock.json','feeds-lock.json']: shutil.copy2(ROOT/name,OUT/name)
+with (OUT/'device-changes.patch').open('w') as f: subprocess.run(['git','diff','--','target'],cwd=SRC,stdout=f,check=True)
+print('Pinned source, packages, 2 GiB RAM and unchanged partition layout prepared.')
+,(ROOT/'config/extra.config').read_text(),re.M) if f'CONFIG_PACKAGE_{sym}=y' not in config]
+print('ALL DROPPED REQUESTED PACKAGES:',missing_symbols,flush=True)
 required=['TARGET_mediatek_filogic_DEVICE_netcore_n60-pro','PACKAGE_luci-app-store','PACKAGE_luci-app-openclash','PACKAGE_luci-app-adguardhome','PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol','PACKAGE_luci-app-ksmbd','PACKAGE_luci-theme-argon','PACKAGE_luci-i18n-argon-config-zh-cn']
 if MODERN:
     required=[s for s in required if s not in ('PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol')]
