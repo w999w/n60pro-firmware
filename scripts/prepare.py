@@ -109,15 +109,16 @@ exit 0
 defaults.chmod(0o755)
 run('make','defconfig',cwd=SRC)
 config=(SRC/'.config').read_text()
-# Keep real Kconfig diagnostics even when an assertion aborts preparation.
+# Keep Kconfig diagnostics before assertions.
 for name in ['.config','tmp/.packageinfo','tmp/.config-package.in']:
     path=SRC/name
     if path.exists(): shutil.copy2(path,OUT/('diagnostic-'+path.name.lstrip('.')))
+meta=(SRC/'tmp/.packageinfo').read_text()
 for name in ['luci-app-store','luci-lib-taskd','taskd','luci-lib-xterm']:
-    meta=(SRC/'tmp/.packageinfo').read_text()
     match=re.search(r'^Package: '+re.escape(name)+r'\n.*?(?=\nPackage: |\Z)',meta,re.M|re.S)
     print('DEPENDENCY DIAGNOSTIC',name,match.group(0)[:3000] if match else 'NOT IN PACKAGE METADATA',flush=True)
-missing_symbols=[sym for sym in re.findall(r'^CONFIG_PACKAGE_(.+)=y
+missing_symbols=[sym for sym in re.findall(r'^CONFIG_PACKAGE_(.+)=y$',(ROOT/'config/extra.config').read_text(),re.M) if f'CONFIG_PACKAGE_{sym}=y' not in config]
+print('ALL DROPPED REQUESTED PACKAGES:',missing_symbols,flush=True)
 required=['TARGET_mediatek_filogic_DEVICE_netcore_n60-pro','PACKAGE_luci-app-store','PACKAGE_luci-app-openclash','PACKAGE_luci-app-adguardhome','PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol','PACKAGE_luci-app-ksmbd','PACKAGE_luci-theme-argon','PACKAGE_luci-i18n-argon-config-zh-cn']
 if MODERN:
     required=[s for s in required if s not in ('PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol')]
