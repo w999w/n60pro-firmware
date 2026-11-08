@@ -1,0 +1,27 @@
+name: Check source downloads
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/download-check.yml']
+permissions:
+  contents: read
+jobs:
+  connectivity:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Check the pinned GNU sed source from runner
+        shell: bash
+        run: |
+          set +e
+          for base in https://sources.cdn.openwrt.org https://sources.openwrt.org https://sources.immortalwrt.org https://mirrors.cloud.tencent.com/gnu/sed https://mirrors.aliyun.com/gnu/sed; do
+            rm -f /tmp/sed-source.tar.gz
+            echo "SOURCE $base"
+            curl --fail --location --connect-timeout 10 --max-time 25 --retry 0 --output /tmp/sed-source.tar.gz --write-out 'HTTP=%{http_code} seconds=%{time_total}\n' "$base/sed-4.9.tar.gz"
+            result=$?
+            echo "CURL_EXIT=$result"
+            if [ "$result" = 0 ]; then
+              echo 'd1478a18f033a73ac16822901f6533d30b6be561bcbce46ffd7abce93602282e  /tmp/sed-source.tar.gz' | sha256sum -c -
+            fi
+          done
