@@ -58,7 +58,7 @@ if not MODERN:
     mk.write_text(text[:match.start()]+patched+text[match.end():])
 
 # Ship the two verified arm64 cores, with no subscriptions or personal settings.
-for key in ['smart_core','adguard_core']:
+for key in (['smart_core'] if MODERN else ['smart_core','adguard_core']):
     spec=LOCK[key]
     archive=ROOT/(key+'.download')
     run('curl','--fail','--location','--retry','4','--max-time','180','--output',str(archive),spec['url'])
@@ -106,6 +106,11 @@ for svc in bandix collectd; do
 done
 exit 0
 ''')
+if MODERN:
+    defaults.write_text(defaults.read_text().replace(
+        'uci -q commit AdGuardHome',
+        'uci -q set AdGuardHome.AdGuardHome.binpath=/usr/bin/AdGuardHome\nuci -q commit AdGuardHome',
+    ))
 defaults.chmod(0o755)
 run('make','defconfig',cwd=SRC)
 config=(SRC/'.config').read_text()
