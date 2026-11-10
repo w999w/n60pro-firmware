@@ -1,5 +1,9 @@
 name: Build N60 Pro 25.12 2GB
 on:
+  # 每天早上 01:00（Asia/Shanghai = UTC+8）自动完整编译一次。
+  # GitHub 的 cron 一律按 UTC 计算，所以这里是 17:00（前一日）。
+  schedule:
+    - cron: '0 17 * * *'
   workflow_dispatch:
     inputs:
       full_build:
@@ -52,7 +56,8 @@ jobs:
           cd openwrt
           make download -j8 2>&1 | tee ../output/download.log
       - name: Compile
-        if: github.event_name == 'workflow_dispatch' && inputs.full_build
+        # 定时任务直接完整编译；手动触发仍需勾选 full_build。
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full_build)
         env:
           CCACHE_MAXSIZE: 2G
           CCACHE_BASEDIR: ${{ github.workspace }}/openwrt
@@ -60,7 +65,7 @@ jobs:
           cd openwrt
           make -j"$(nproc)" 2>&1 | tee ../output/build.log || make -j1 V=s 2>&1 | tee ../output/build-retry.log
       - name: Collect firmware and checksums
-        if: github.event_name == 'workflow_dispatch' && inputs.full_build
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full_build)
         run: |
           python3 scripts/collect.py
       - name: Upload firmware and diagnostics
