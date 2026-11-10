@@ -10,6 +10,10 @@ on:
         description: '预检通过后才勾选：执行完整固件编译'
         type: boolean
         default: false
+      force_rebuild:
+        description: '忽略"输入未变化"判断，强制完整编译'
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ['.github/workflows/build.yml', 'scripts/**', 'config/**', '*-lock.json']
@@ -40,8 +44,10 @@ jobs:
           echo "指纹: $hash"
 
       # 只查询、不下载。若命中，说明同样的输入此前已成功编译过。
+      # 勾选 force_rebuild 时跳过本次查询，强制走编译。
       - name: Look up an earlier successful build with identical inputs
         id: built
+        if: github.event_name != 'workflow_dispatch' || inputs.force_rebuild != true
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .build-marker
@@ -49,13 +55,20 @@ jobs:
           lookup-only: true
 
       - name: Decide whether to compile
+        env:
+          FP: ${{ steps.fp.outputs.hash }}
+          HIT: ${{ steps.built.outputs.cache-hit }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force_rebuild || false }}
         run: |
-          if [ "${{ steps.built.outputs.cache-hit }}" = "true" ]; then
-            echo "输入指纹 ${{ steps.fp.outputs.hash }} 已有成功构建，跳过编译。"
-            echo "### 跳过编译：输入未变化（指纹 \`${{ steps.fp.outputs.hash }}\`）" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$FORCE" = "true" ]; then
+            echo "已勾选强制重建，忽略指纹命中。"
+            echo "### 强制完整编译（指纹 \`$FP\`）" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$HIT" = "true" ]; then
+            echo "输入指纹 $FP 已有成功构建，跳过编译。"
+            echo "### 跳过编译：输入未变化（指纹 \`$FP\`）" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "输入有变化或从未构建，将执行完整编译。"
-            echo "### 执行完整编译（指纹 \`${{ steps.fp.outputs.hash }}\`）" >> "$GITHUB_STEP_SUMMARY"
+            echo "### 执行完整编译（指纹 \`$FP\`）" >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Restore download and compiler caches
@@ -125,6 +138,8 @@ jobs:
           echo "已标记指纹 ${{ steps.fp.outputs.hash }} 为构建成功。"
           echo "### 已记录指纹 \`${{ steps.fp.outputs.hash }}\`" >> "$GITHUB_STEP_SUMMARY"
       - name: Save build marker
+        # 强制重建时该指纹的缓存可能已存在，重复写入会报错，这里不让它影响任务结果。
+        continue-on-error: true
         if: >
           success() && steps.built.outputs.cache-hit != 'true' &&
           (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full_build))
