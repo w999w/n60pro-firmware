@@ -4,110 +4,65 @@
 [![系统版本](https://img.shields.io/badge/ImmortalWrt-25.12.2-1685D1?style=flat-square)](https://github.com/immortalwrt/immortalwrt/tree/v25.12.2)
 [![内核版本](https://img.shields.io/badge/Linux-6.12.103-333333?style=flat-square)](https://github.com/immortalwrt/immortalwrt/blob/v25.12.2/target/linux/generic/kernel-6.12)
 
-为 **磊科 N60 Pro 原厂 2GB 内存版**准备的通用固件：保留代理、DNS、外接硬盘、设备与带宽监控，以及兼容的网络加速能力。
+为 **磊科 N60 Pro 原厂 2GB 内存版**准备的通用固件：保留代理、DNS、外接硬盘、设备与带宽监控，以及兼容的网络加速能力。基于 ImmortalWrt 25.12.2 / Linux 6.12.103，由 GitHub Actions 每日自动构建。
 
-> **版本标签表示当前构建目标，不表示镜像已经完成编译或通过上机验证。** 构建状态与接手事项见 [Actions](https://github.com/w999w/n60pro-firmware/actions) 和 [项目 Wiki](https://github.com/w999w/n60pro-firmware/wiki)。
+> 详细文档已按专题拆分到 **[Wiki](https://github.com/w999w/n60pro-firmware/wiki)**，本 README 只保留概览与入口。
 
-## 系统与硬件
+## 关键信息
 
-| 项目 | 当前配置 |
+| 项 | 值 |
 | --- | --- |
-| **系统版本** | **ImmortalWrt 25.12.2**，官方稳定标签 |
-| **Linux 内核** | **6.12.103**，采用该系统版本配套内核 |
-| 适配机型 | Netcore N60 Pro，2GB RAM＋128MB NAND |
+| **管理地址** | **http://192.168.6.1**（LAN `192.168.6.0/24`） |
+| 适配机型 | Netcore N60 Pro，2GB RAM ＋ 128MB NAND |
 | 平台 / 架构 | MediaTek Filogic / ARM64 |
-| **管理地址** | **http://192.168.6.1** |
-| LAN 网段 | 192.168.6.0/24 |
-| WAN 上网 | DHCP，接上级中兴路由器，由中兴拨号 |
-| 时区 | Asia/Shanghai，北京时间 |
-| 无线方案 | 官方 mt76 驱动及设备配套无线固件 |
-| 镜像格式 | 官方 FIT / UBI：`sysupgrade.itb` |
+| 镜像格式 | `sysupgrade.itb`（FIT / UBI） |
+| 无线 | 2.4G ＋ 5G，`sae-mixed`（SAE ＋ WPA2/WPA3 过渡）；5G 支持 160MHz |
+| 代理 | OpenClash ＋ ARM64 Smart Mihomo 内核 |
+| 监控 | Bandix 设备流量 ＋ collectd 系统统计 |
+| 外置存储 | fstab 按 UUID 挂载，支持 ext4 / exFAT / NTFS3 / Btrfs / SMB |
 
-2GB 是运行内存；128MB 是板载闪存。外接硬盘另计。源码与插件采用固定提交，详见 [版本锁定](source-lock.json) 和 [配套 feeds](feeds-lock.json)。
+## 构建与下载
 
-## 保留的功能
-
-| 分类 | 配置 | 用途 |
-| --- | --- | --- |
-| **代理分流** | **OpenClash＋ARM64 Smart Mihomo 核心** | 订阅管理、规则分流、AI与流媒体策略 |
-| **DNS 与广告过滤** | **AdGuard Home＋核心、MosDNS** | 广告域名过滤、DNS分流和缓存 |
-| 管理界面 | 中文 LuCI、Argon、iStore | 中文后台、主题、插件商店 |
-| **设备与带宽监控** | **Bandix** | 设备流量与带宽使用情况 |
-| 系统统计 | LuCI Statistics / collectd、htop | CPU、内存、负载、网络接口和磁盘统计 |
-| 硬件状态 | 系统状态页及设备驱动 | 查看联网设备、接口及硬件支持的温度信息 |
-| **外接硬盘** | USB 3.0、UAS、自动挂载、e2fsprogs | 识别、挂载和维护USB存储 |
-| 文件系统 | ext4、exFAT、NTFS3、VFAT、Btrfs | 支持常见磁盘格式 |
-| 局域网共享 | SMB / ksmbd | 电脑访问路由器外接硬盘 |
-| 磁盘维护 | 硬盘休眠管理 | 按需配置硬盘休眠 |
-| **网络性能** | 官方网口、交换机、Wi-Fi驱动，nft流量卸载支持 | 保留适配的转发与加速能力 |
-| 日常维护 | TaskPlan、Watchcat、nano、tcpdump | 定时任务、维护和网络诊断 |
-
-以上为构建配置中的选择，最终以成功构建的 manifest 和设备验证结果为准。没有同时集成旧 wrtbwmon，以 Bandix 和系统统计覆盖监控需求。
-
-**加速说明：** 本版采用官方驱动及卸载机制，未加入需要替换防火墙的第三方 TurboACC 补丁。流量卸载可能影响监控统计完整性，也需核对与 OpenClash 的兼容性；组件存在不等于已启用或已完成性能调优。
-
-## 默认启停状态
-
-| 状态 | 功能 |
+| 触发方式 | 执行内容 |
 | --- | --- |
-| **默认启用** | 基础联网、路由器后台、iStore、Bandix流量监控、collectd系统统计 |
-| **默认停用，按需开启** | OpenClash、AdGuard Home、MosDNS、SMB、Watchcat、硬盘休眠服务、TaskPlan |
+| **每天 01:00（北京时间）** | 自动完整编译 |
+| 向 `main` 推送改动 | 只跑预检与源码下载，**不编译** |
+| 手动 `workflow_dispatch` 勾选 `full_build` | 完整编译；输入未变化时可勾 `force_rebuild` 强制重建 |
 
-Bandix默认使用内存目录，不持久化流量数据，重启后历史清空，减少闪存写入。代理和DNS服务需统一配置后再启动，避免端口冲突。
+产物在 Actions 附件中（`n60pro-25.12-2gb-编号`，含 `sysupgrade.itb` 与 `SHA256SUMS`），保留 14 天。源码与插件版本锁定在 `source-lock.json` 和 `feeds-lock.json`，包选择在 `config/extra.config`。
 
-## 首启默认值
+构建机制、指纹跳过、Actions 状态见 **[构建与发布](https://github.com/w999w/n60pro-firmware/wiki/Build-and-Release)**。
 
-首次开机由 `files/etc/uci-defaults/99-n60-generic` 写入（脚本内容见 `scripts/prepare.py`）：
+## 刷入
 
-| 项目 | 值 | 说明 |
-| --- | --- | --- |
-| 主机名 | `N60Pro` | |
-| 时区 | `CST-8` / `Asia/Shanghai` | |
-| **LAN 管理地址** | **192.168.6.1 / 255.255.255.0** | 静态地址，DHCP 池自动落在同网段 |
-| Dropbear | `DirectInterface=lan` | 直接绑定 `br-lan`；不再使用 `Interface`，避免启动瞬间 22 端口绑定失败 |
-| Bandix | `tc_backend=netlink`、`data_dir=/tmp/bandix` | 固定 TC 后端；流量数据只写内存盘 |
-| OpenClash | `enable=0`、`core_type=Smart` | 按需开启 |
-| AdGuard Home | `enabled=0`、`redirect=none` | 按需开启，避开 53 端口冲突 |
-| collectd / Bandix 服务 | 开机自启 | |
+**25.12 使用官方 FIT/UBI 镜像体系，不能套用旧 237 版 24.10 的 `sysupgrade.bin` 方式。** 刷入前核对现有引导与分区布局；建议不勾"保留配置"，让首启脚本生效。
 
-迁移旧配置时可能覆盖上述默认值，恢复前请确认目标网段。
+刷完后：
 
-## 变更记录
+- LAN 变为 `192.168.6.1`，电脑需重新获取同网段地址
+- 重启后 **5G 会晚约 60 秒出现**——160MHz 覆盖 DFS 信道，hostapd 要先做雷达检测，属正常现象
 
-### 2026-11-10
+步骤、首启默认值与验证清单见 **[刷机与首启](https://github.com/w999w/n60pro-firmware/wiki/Flash-and-First-Boot)**。
 
-- **默认 LAN 管理地址改为 `192.168.6.1`**（原 `192.168.100.1`），`preflight.json` 中记录的 `lan` 字段同步更新。
-- **Bandix 固定 `tc_backend=netlink`**：本内核未启用 `CONFIG_DEBUG_INFO_BTF`，`auto` 会优先尝试 `tcx` 后端并报 `btf_vmlinux is malformed`，约 4 秒后回退 `netlink` 才成功。固定后端后首次加载即成功，启动省约 4 秒，并消除该 WARN。
-- **Dropbear 改用 `DirectInterface=lan`**：原 `Interface=lan` 会在 `br-lan` 尚未取得地址时绑定失败，日志出现 `Failed listening on '22': Address not available`。
-- **行尾统一为 LF** 并新增 [`.gitattributes`](.gitattributes)（`text eol=lf`），避免在 Windows 上编辑后产生整文件 diff。
-- 预检 Run **#16** 通过：选中 392 个软件包，零重复定义、零缺失直接依赖；`preflight.json` 确认 `lan = 192.168.6.1`。
+## 文档导航
 
-## 精简范围
+| 页面 | 内容 |
+| --- | --- |
+| [需求与范围](https://github.com/w999w/n60pro-firmware/wiki/Requirements) | 目标硬件、功能清单、明确不做的、订阅结构与分流意图 |
+| [构建与发布](https://github.com/w999w/n60pro-firmware/wiki/Build-and-Release) | 关键文件、触发规则、指纹跳过、Actions 快照、兼容边界 |
+| [刷机与首启](https://github.com/w999w/n60pro-firmware/wiki/Flash-and-First-Boot) | 刷写命令、首启默认值、验证清单、软链拓扑 |
+| [OpenClash](https://github.com/w999w/n60pro-firmware/wiki/OpenClash) | 代理组、AI 链路、规则与 DNS、更新机制、优化记录 |
+| [网络与无线](https://github.com/w999w/n60pro-firmware/wiki/Network-and-Wireless) | 接口地址、IPv6 relay、无线与 160MHz/DFS、转发性能参数 |
+| [运维手册](https://github.com/w999w/n60pro-firmware/wiki/Operations) | 定时任务、日志归档、备份与回滚点、常用命令 |
+| [故障与排查](https://github.com/w999w/n60pro-firmware/wiki/Troubleshooting) | 排障决策树、构建故障记录、已知无害日志 |
+| [变更记录](https://github.com/w999w/n60pro-firmware/wiki/Changelog) | 按日期倒序的完整时间线 |
 
-按需求不集成：DDNS、Lucky、VPN/远程接入、异地组网、内网穿透、上网时间控制、设备限速、带宽整形、各类下载器、Docker及媒体服务器。必要的本地SSH管理保留。
+## 边界
 
-私人订阅、AI美区选点、流媒体策略及NAS设置不写入公开镜像工程；仓库和Wiki不保存密码、密钥或私人备份。
+公开仓库与 Wiki **不保存**账号密码、机场订阅、控制器密钥、MAC、UUID、私人配置或备份。私人订阅与 NAS 设置另行私下迁移。
 
-## 云编译与下载
+本项目为个人定制构建工程，**不是 ImmortalWrt 官方发布镜像**。
 
-全部构建文件保存在本仓库，云端执行，不依赖个人电脑路径。换电脑或AI后，读取 [Wiki交接说明](https://github.com/w999w/n60pro-firmware/wiki) 即可继续。
+## 源码
 
-1. 向 `main` 提交 `scripts/**`、`config/**` 或 lock 文件的改动，会**自动触发预检**（准备＋下载），不会编译。
-2. 预检通过后，手动运行并勾选 `full_build`：执行**完整编译**。
-3. 完整编译成功后，下载 `n60pro-25.12-2gb-编号` 附件，核对镜像及 `SHA256SUMS`。
-
-编译使用运行器全部CPU，并缓存下载源码与最多2GB的CCache；缓存丢失可重新构建。准备阶段检查包选择及依赖，产物收集阶段检查FIT文件头与软件清单。首次完整编译仍需较长时间。
-
-> 预检成功不等于固件编译成功。失败或取消的任务也可能上传日志附件；只有包含真实镜像的成功完整构建才有可交付固件。Actions附件保留14天。
-
-## 刷入条件
-
-**25.12使用官方FIT/UBI镜像体系，不能直接沿用旧237版24.10的刷入方法。** 刷入前需核对现有引导与分区布局。工程仅修改2GiB内存声明，不自动改分区、刷引导或格式化硬盘。
-
-默认 `192.168.6.1` 地址在首次初始化时应用，迁移旧配置可能覆盖它。刷入后电脑需重新获取同网段地址。编译成功后仍需验证实际启动、无线、USB、IPv6及代理功能。
-
-## 源码与文档
-
-[ImmortalWrt](https://github.com/immortalwrt/immortalwrt/tree/v25.12.2) · [OpenClash](https://github.com/vernesong/OpenClash) · [AdGuard LuCI](https://github.com/rufengsuixing/luci-app-adguardhome) · [MosDNS](https://github.com/sbwml/luci-app-mosdns) · [Bandix界面](https://github.com/timsaya/luci-app-bandix) / [核心打包](https://github.com/timsaya/openwrt-bandix) · [TaskPlan](https://github.com/sirpdboy/luci-app-taskplan) · [Argon](https://github.com/jerrykuku/luci-theme-argon) · [iStore](https://github.com/istoreos/istore)
-
-本项目为个人定制构建工程，不是ImmortalWrt官方发布镜像。旧版审阅文档 [upstream-build-review.md](docs/upstream-build-review.md) 仅记录24.10历史情况，不代表25.12已经验证。
+[ImmortalWrt](https://github.com/immortalwrt/immortalwrt/tree/v25.12.2) · [OpenClash](https://github.com/vernesong/OpenClash) · [MosDNS](https://github.com/sbwml/luci-app-mosdns) · [Bandix](https://github.com/timsaya/luci-app-bandix) · [Argon](https://github.com/jerrykuku/luci-theme-argon) · [iStore](https://github.com/istoreos/istore)
