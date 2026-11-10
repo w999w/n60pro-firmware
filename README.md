@@ -3,6 +3,14 @@
 [![云编译状态](https://github.com/w999w/n60pro-firmware/actions/workflows/build.yml/badge.svg)](https://github.com/w999w/n60pro-firmware/actions/workflows/build.yml)
 [![系统版本](https://img.shields.io/badge/ImmortalWrt-25.12.2-1685D1?style=flat-square)](https://github.com/immortalwrt/immortalwrt/tree/v25.12.2)
 [![内核版本](https://img.shields.io/badge/Linux-6.12.103-333333?style=flat-square)](https://github.com/immortalwrt/immortalwrt/blob/v25.12.2/target/linux/generic/kernel-6.12)
+[![最后提交](https://img.shields.io/github/last-commit/w999w/n60pro-firmware?style=flat-square&label=last%20commit)](https://github.com/w999w/n60pro-firmware/commits/main)
+
+[![机型](https://img.shields.io/badge/board-N60%20Pro%202GB-0A7E8C?style=flat-square)](https://github.com/w999w/n60pro-firmware/wiki/Requirements)
+[![架构](https://img.shields.io/badge/arch-aarch64-6E4C13?style=flat-square)](https://github.com/w999w/n60pro-firmware/wiki/Requirements)
+[![构建频率](https://img.shields.io/badge/build-daily%2001%3A00-8957E5?style=flat-square)](https://github.com/w999w/n60pro-firmware/wiki/Build-and-Release)
+[![无线](https://img.shields.io/badge/WiFi-6%20%C2%B7%20160MHz-8A2BE2?style=flat-square)](https://github.com/w999w/n60pro-firmware/wiki/Network-and-Wireless)
+[![代理](https://img.shields.io/badge/proxy-OpenClash%20Smart-1F6FEB?style=flat-square)](https://github.com/w999w/n60pro-firmware/wiki/OpenClash)
+[![管理地址](https://img.shields.io/badge/LAN-192.168.6.1-2EA043?style=flat-square)](https://github.com/w999w/n60pro-firmware/wiki/Flash-and-First-Boot)
 
 为 **磊科 N60 Pro 原厂 2GB 内存版**准备的通用固件：保留代理、DNS、外接硬盘、设备与带宽监控，以及兼容的网络加速能力。基于 ImmortalWrt 25.12.2 / Linux 6.12.103，由 GitHub Actions 每日自动构建。
 
