@@ -18,7 +18,8 @@ on:
     branches: [main]
     paths: ['.github/workflows/build.yml', 'scripts/**', 'config/**', '*-lock.json']
 permissions:
-  contents: read
+  # 需要写权限才能创建 Release 并上传固件
+  contents: write
 concurrency:
   group: n60pro-build
   cancel-in-progress: false
@@ -124,6 +125,34 @@ jobs:
           path: output/
           retention-days: 14
           if-no-files-found: error
+
+      # 发布到 Releases：滚动标签 nightly，每次覆盖为最新固件。
+      # 用 continue-on-error 保证"发布失败"不会把整个构建判为失败（artifact 里仍有产物）。
+      - name: Publish firmware to Releases
+        if: >
+          success() && steps.built.outputs.cache-hit != 'true' &&
+          (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full_build))
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=nightly
+          NOTES=$(printf '自动构建（每日 01:00 北京时间）\n\n- 提交: %s\n- 运行: #%s\n- 内核: 6.12.103\n- 镜像: sysupgrade.itb（FIT/UBI）\n' "$GITHUB_SHA" "$GITHUB_RUN_NUMBER")
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "更新已有 Release: $TAG"
+            gh release edit "$TAG" --notes "$NOTES"
+          else
+            echo "创建 Release: $TAG"
+            gh release create "$TAG" --title "N60 Pro 25.12.2 · nightly" --notes "$NOTES" --prerelease
+          fi
+          FILES=""
+          for f in output/*.itb output/*.manifest output/SHA256SUMS; do
+            [ -f "$f" ] && FILES="$FILES $f"
+          done
+          echo "上传文件:$FILES"
+          gh release upload "$TAG" $FILES --clobber
+          echo "### 已发布：夜间构建 $TAG" >> "$GITHUB_STEP_SUMMARY"
+          echo "https://github.com/${{ github.repository }}/releases/tag/$TAG" >> "$GITHUB_STEP_SUMMARY"
 
       # 只有整套流程（含上传）都成功，才把该指纹标记为"已构建"。
       # 上传失败时不会写标记，下次会自动重试。
