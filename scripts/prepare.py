@@ -84,8 +84,11 @@ uci set system.@system[0].hostname=N60Pro
 uci set system.@system[0].timezone=CST-8
 uci set system.@system[0].zonename=Asia/Shanghai
 uci commit system
+uci -q set dropbear.@dropbear[0].DirectInterface=lan
+uci -q delete dropbear.@dropbear[0].Interface
+uci -q commit dropbear
 uci set network.lan.proto=static
-uci set network.lan.ipaddr=192.168.100.1
+uci set network.lan.ipaddr=192.168.6.1
 uci set network.lan.netmask=255.255.255.0
 uci commit network
 uci -q set openclash.config.enable=0
@@ -97,6 +100,7 @@ uci -q commit AdGuardHome
 uci -q set bandix.traffic.enabled=1
 uci -q set bandix.traffic.traffic_enable_storage=0
 uci -q set bandix.general.data_dir=/tmp/bandix
+uci -q set bandix.general.tc_backend=netlink
 uci -q commit bandix
 for svc in openclash AdGuardHome mosdns ksmbd watchcat hd-idle taskplan; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc disable
@@ -159,7 +163,7 @@ for name in selected:
                     if dep not in provided:
                         missing.append((name,dep))
 assert not missing, f'Selected packages have unselected direct dependencies: {missing}'
-(OUT/'preflight.json').write_text(json.dumps({'series':LOCK.get('series'),'firmware_commit':LOCK['firmware']['commit'],'selected_package_count':len(selected),'duplicate_definitions':duplicates,'missing_direct_dependencies':missing,'lan':'192.168.100.1','full_compile_completed':False},indent=2))
+(OUT/'preflight.json').write_text(json.dumps({'series':LOCK.get('series'),'firmware_commit':LOCK['firmware']['commit'],'selected_package_count':len(selected),'duplicate_definitions':duplicates,'missing_direct_dependencies':missing,'lan':'192.168.6.1','full_compile_completed':False},indent=2))
 shutil.copy2(SRC/'.config',OUT/'build.config')
 with (OUT/'diffconfig').open('w') as f: subprocess.run(['./scripts/diffconfig.sh'],cwd=SRC,stdout=f,check=True)
 for name in ['source-lock.json','feeds-lock.json']: shutil.copy2(ROOT/name,OUT/name)
