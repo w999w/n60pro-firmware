@@ -55,6 +55,33 @@
 
 Bandix默认使用内存目录，不持久化流量数据，重启后历史清空，减少闪存写入。代理和DNS服务需统一配置后再启动，避免端口冲突。
 
+## 首启默认值
+
+首次开机由 `files/etc/uci-defaults/99-n60-generic` 写入（脚本内容见 `scripts/prepare.py`）：
+
+| 项目 | 值 | 说明 |
+| --- | --- | --- |
+| 主机名 | `N60Pro` | |
+| 时区 | `CST-8` / `Asia/Shanghai` | |
+| **LAN 管理地址** | **192.168.6.1 / 255.255.255.0** | 静态地址，DHCP 池自动落在同网段 |
+| Dropbear | `DirectInterface=lan` | 直接绑定 `br-lan`；不再使用 `Interface`，避免启动瞬间 22 端口绑定失败 |
+| Bandix | `tc_backend=netlink`、`data_dir=/tmp/bandix` | 固定 TC 后端；流量数据只写内存盘 |
+| OpenClash | `enable=0`、`core_type=Smart` | 按需开启 |
+| AdGuard Home | `enabled=0`、`redirect=none` | 按需开启，避开 53 端口冲突 |
+| collectd / Bandix 服务 | 开机自启 | |
+
+迁移旧配置时可能覆盖上述默认值，恢复前请确认目标网段。
+
+## 变更记录
+
+### 2026-11-10
+
+- **默认 LAN 管理地址改为 `192.168.6.1`**（原 `192.168.100.1`），`preflight.json` 中记录的 `lan` 字段同步更新。
+- **Bandix 固定 `tc_backend=netlink`**：本内核未启用 `CONFIG_DEBUG_INFO_BTF`，`auto` 会优先尝试 `tcx` 后端并报 `btf_vmlinux is malformed`，约 4 秒后回退 `netlink` 才成功。固定后端后首次加载即成功，启动省约 4 秒，并消除该 WARN。
+- **Dropbear 改用 `DirectInterface=lan`**：原 `Interface=lan` 会在 `br-lan` 尚未取得地址时绑定失败，日志出现 `Failed listening on '22': Address not available`。
+- **行尾统一为 LF** 并新增 [`.gitattributes`](.gitattributes)（`text eol=lf`），避免在 Windows 上编辑后产生整文件 diff。
+- 预检 Run **#16** 通过：选中 392 个软件包，零重复定义、零缺失直接依赖；`preflight.json` 确认 `lan = 192.168.6.1`。
+
 ## 精简范围
 
 按需求不集成：DDNS、Lucky、VPN/远程接入、异地组网、内网穿透、上网时间控制、设备限速、带宽整形、各类下载器、Docker及媒体服务器。必要的本地SSH管理保留。
@@ -65,7 +92,7 @@ Bandix默认使用内存目录，不持久化流量数据，重启后历史清�
 
 全部构建文件保存在本仓库，云端执行，不依赖个人电脑路径。换电脑或AI后，读取 [Wiki交接说明](https://github.com/w999w/n60pro-firmware/wiki) 即可继续。
 
-1. 提交构建配置，或手动运行工作流且保持 `full_build` 未勾选：执行**预检与源码下载**。
+1. 向 `main` 提交 `scripts/**`、`config/**` 或 lock 文件的改动，会**自动触发预检**（准备＋下载），不会编译。
 2. 预检通过后，手动运行并勾选 `full_build`：执行**完整编译**。
 3. 完整编译成功后，下载 `n60pro-25.12-2gb-编号` 附件，核对镜像及 `SHA256SUMS`。
 
@@ -77,10 +104,10 @@ Bandix默认使用内存目录，不持久化流量数据，重启后历史清�
 
 **25.12使用官方FIT/UBI镜像体系，不能直接沿用旧237版24.10的刷入方法。** 刷入前需核对现有引导与分区布局。工程仅修改2GiB内存声明，不自动改分区、刷引导或格式化硬盘。
 
-默认192.168.6.1地址在首次初始化时应用，迁移旧配置可能覆盖它。编译成功后仍需验证实际启动、无线、USB、IPv6及代理功能。
+默认 `192.168.6.1` 地址在首次初始化时应用，迁移旧配置可能覆盖它。刷入后电脑需重新获取同网段地址。编译成功后仍需验证实际启动、无线、USB、IPv6及代理功能。
 
 ## 源码与文档
 
 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt/tree/v25.12.2) · [OpenClash](https://github.com/vernesong/OpenClash) · [AdGuard LuCI](https://github.com/rufengsuixing/luci-app-adguardhome) · [MosDNS](https://github.com/sbwml/luci-app-mosdns) · [Bandix界面](https://github.com/timsaya/luci-app-bandix) / [核心打包](https://github.com/timsaya/openwrt-bandix) · [TaskPlan](https://github.com/sirpdboy/luci-app-taskplan) · [Argon](https://github.com/jerrykuku/luci-theme-argon) · [iStore](https://github.com/istoreos/istore)
 
-本项目为个人定制构建工程，不是ImmortalWrt官方发布固件。旧版审阅文档 [upstream-build-review.md](docs/upstream-build-review.md) 仅记录24.10历史情况，不代表25.12已经验证。
+本项目为个人定制构建工程，不是ImmortalWrt官方发布镜像。旧版审阅文档 [upstream-build-review.md](docs/upstream-build-review.md) 仅记录24.10历史情况，不代表25.12已经验证。
