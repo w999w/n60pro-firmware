@@ -20,8 +20,8 @@
     "commit": "c6d63bd68aa9272e40c35cee5e615f45cc1e4eb0"
   },
   "smart_core": {
-    "url": "https://github.com/vernesong/mihomo/releases/download/Prerelease-Alpha/mihomo-linux-arm64-alpha-smart-96feb2a.gz",
-    "sha256": "9679493faf0abcb4595293c1fdc844c4d58bedc917b37fa6499b0be484fb00d3"
+    "url": "https://github.com/vernesong/mihomo/releases/download/Prerelease-Alpha/mihomo-linux-arm64-alpha-smart-f8257ce.gz",
+    "sha256": "54463c943c4efef89ffb657e96d1484eb05e6af33b5a38f25b43be1a3558e871"
   },
   "adguard_core": {
     "url": "https://github.com/AdguardTeam/AdGuardHome/releases/download/v0.107.80/AdGuardHome_linux_arm64.tar.gz",
