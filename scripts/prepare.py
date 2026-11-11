@@ -128,7 +128,7 @@ for name in ['luci-app-store','luci-lib-taskd','taskd','luci-lib-xterm']:
     print('DEPENDENCY DIAGNOSTIC',name,match.group(0)[:3000] if match else 'NOT IN PACKAGE METADATA',flush=True)
 print('ALL DROPPED REQUESTED PACKAGES:',[sym for sym in re.findall(r'^CONFIG_PACKAGE_(.+)=y$',(ROOT/'config/extra.config').read_text(),re.M) if f'CONFIG_PACKAGE_{sym}=y' not in config],flush=True)
 
-required=['TARGET_mediatek_filogic_DEVICE_netcore_n60-pro','PACKAGE_luci-app-store','PACKAGE_luci-app-openclash','PACKAGE_luci-app-adguardhome','PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol','PACKAGE_luci-app-ksmbd','PACKAGE_luci-theme-argon','PACKAGE_luci-i18n-argon-config-zh-cn']
+required=['TARGET_mediatek_filogic_DEVICE_netcore_n60-pro','PACKAGE_luci-app-store','PACKAGE_luci-app-openclash','PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol','PACKAGE_luci-app-ksmbd','PACKAGE_luci-theme-argon','PACKAGE_luci-i18n-argon-config-zh-cn']
 if MODERN:
     required=[s for s in required if s not in ('PACKAGE_kmod-mt_wifi','PACKAGE_luci-app-mtwifi-cfg','PACKAGE_luci-app-timewol')]
     required += ['PACKAGE_kmod-mt7915e']
