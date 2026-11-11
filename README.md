@@ -67,3 +67,10 @@
 ## 源码
 
 [ImmortalWrt](https://github.com/immortalwrt/immortalwrt/tree/v25.12.2) · [OpenClash](https://github.com/vernesong/OpenClash) · [MosDNS](https://github.com/sbwml/luci-app-mosdns) · [Bandix](https://github.com/timsaya/luci-app-bandix) · [Argon](https://github.com/jerrykuku/luci-theme-argon) · [iStore](https://github.com/istoreos/istore)
+
+## 致谢
+
+本项目在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 与 ChatGPT 的协助下完成。
+
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
+[![](https://img.shields.io/badge/assisted_by-ChatGPT-10A37F?style=flat-square&logo=openai&logoColor=white)](https://chatgpt.com)
