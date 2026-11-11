@@ -174,7 +174,9 @@ for svc in bandix collectd hd-idle; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc enable
 done
 # Pick data dirs by disk presence, then stage OpenClash onto tmpfs.
-[ -x /usr/sbin/bandix-datadir.sh ] && /usr/sbin/bandix-datadir.sh
+# Use the boot variant here: it only edits config and never races the
+# about-to-start bandix service for port 8686.
+[ -x /usr/sbin/bandix-datadir-boot.sh ] && /usr/sbin/bandix-datadir-boot.sh
 [ -x /usr/sbin/openclash-datadir.sh ] && /usr/sbin/openclash-datadir.sh
 exit 0
 ''')
@@ -201,6 +203,34 @@ if [ "$current" != "$want" ]; then
 		uci -q set bandix.traffic.traffic_enable_storage=0
 	fi
 	uci -q commit bandix
+fi
+exit 0
+''')
+# rc.local 在 bandix 服务(99)之后执行，此时实例已占用 8686；
+# 这里只改配置，不重启服务，否则新进程会因 "Address in use" 停在半死状态。
+(datadir_helpers/'bandix-datadir-boot.sh').write_text('''#!/bin/sh
+# Called from rc.local after the bandix service already started; only fix the
+# config, never restart, or the new instance loses the 8686 bind.
+DISK_DIR="/mnt/sda1/bandix"
+TMP_DIR="/tmp/bandix"
+want="$TMP_DIR"
+if mountpoint -q /mnt/sda1 2>/dev/null; then
+	mkdir -p "$DISK_DIR" 2>/dev/null && want="$DISK_DIR"
+fi
+mkdir -p "$want" 2>/dev/null
+current=$(uci -q get bandix.general.data_dir)
+if [ "$current" != "$want" ]; then
+	uci -q set bandix.general.data_dir="$want"
+	if [ "$want" = "$DISK_DIR" ]; then
+		uci -q set bandix.traffic.traffic_enable_storage=1
+	else
+		uci -q set bandix.traffic.traffic_enable_storage=0
+	fi
+	uci -q commit bandix
+	# Start only when nothing is running, so we never race with a live instance.
+	if ! pidof bandix >/dev/null 2>&1; then
+		[ -x /etc/init.d/bandix ] && /etc/init.d/bandix start >/dev/null 2>&1
+	fi
 fi
 exit 0
 ''')
@@ -247,6 +277,8 @@ case "$DEVNAME" in sda*) ;; *) exit 0 ;; esac
 before=$(uci -q get bandix.general.data_dir)
 /usr/sbin/bandix-datadir.sh
 [ "$before" = "$(uci -q get bandix.general.data_dir)" ] && exit 0
+# Let the old instance release 8686 before starting the replacement.
+sleep 2
 [ -x /etc/init.d/bandix ] && /etc/init.d/bandix restart >/dev/null 2>&1
 exit 0
 ''')
