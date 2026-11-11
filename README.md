@@ -13,7 +13,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| **管理地址** | **http://192.168.6.1** （LAN `192.168.6.0/24`） |
+| **管理地址** | **https://192.168.6.1** （HTTP 自动跳转；自签证书首次访问需手动信任） |
 | 适配机型 | Netcore N60 Pro，2GB RAM ＋ 128MB NAND |
 | 平台 / 架构 | MediaTek Filogic / ARM64 |
 | 镜像格式 | `sysupgrade.itb`（FIT / UBI） |

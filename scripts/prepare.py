@@ -148,6 +148,30 @@ uci -q set bandix.traffic.traffic_enable_storage=0
 uci -q set bandix.general.data_dir=/tmp/bandix
 uci -q set bandix.general.tc_backend=netlink
 uci -q commit bandix
+# HTTPS on by default: generate a self-signed cert first, then decide whether
+# to force the redirect. uhttpd appends -q whenever listen_https is non-empty,
+# without checking that the cert is usable; redirecting to a dead 443 would
+# lock the web UI out, so only enable it once both files really exist.
+if [ ! -s /etc/uhttpd.crt ] || [ ! -s /etc/uhttpd.key ]; then
+    px5g selfsigned -der -days 397 -newkey ec -pkeyopt ec_paramgen_curve:P-256 \\
+        -keyout /etc/uhttpd.key -out /etc/uhttpd.crt \\
+        -subj /C=ZZ/ST=Somewhere/L=Unknown/CN=N60Pro \\
+        -addext extendedKeyUsage=serverAuth \\
+        -addext subjectAltName=DNS:N60Pro \\
+        -addext subjectAltName=IP:192.168.6.1 >/dev/null 2>&1
+    chmod 600 /etc/uhttpd.key 2>/dev/null
+    chmod 644 /etc/uhttpd.crt 2>/dev/null
+fi
+uci -q delete uhttpd.main.listen_https
+if [ -s /etc/uhttpd.crt ] && [ -s /etc/uhttpd.key ]; then
+    uci -q add_list uhttpd.main.listen_https=0.0.0.0:443
+    uci -q add_list uhttpd.main.listen_https='[::]:443'
+    uci -q set uhttpd.main.redirect_https=1
+else
+    # No usable cert: keep plain HTTP reachable instead of redirecting nowhere.
+    uci -q set uhttpd.main.redirect_https=0
+fi
+uci -q commit uhttpd
 for svc in openclash AdGuardHome mosdns ksmbd watchcat hd-idle taskplan; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc disable
 done
