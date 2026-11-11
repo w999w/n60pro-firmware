@@ -19,7 +19,10 @@ assert not required-packages, f'Mandatory packages absent from image: {sorted(re
 for p in (['etc/openclash/core/clash_meta'] if images[0].suffix=='.itb' else ['etc/openclash/core/clash_meta','usr/bin/AdGuardHome/AdGuardHome']):
     assert (root/'openwrt/files'/p).stat().st_size>1000000, f'Core missing: {p}'
 if images[0].suffix=='.itb':
-    assert 'adguardhome' in packages, 'AdGuard Home package missing from manifest'
+    # AdGuard Home 只在显式启用时才进镜像（config/extra.config 里没有它），
+    # 所以这里不能无条件断言，只在配置确实选中它时校验。
+    if 'adguardhome' in required:
+        assert 'adguardhome' in packages, 'AdGuard Home package missing from manifest'
 for path in target.iterdir():
     if path.is_file() and (path in images or path.suffix in ['.manifest','.buildinfo','.json']): shutil.copy2(path,out/path.name)
 names=[]
