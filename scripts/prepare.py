@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Prepare a pinned N60 Pro 2 GiB build; never reads router backups."""
-import gzip, hashlib, json, pathlib, re, shutil, subprocess, tarfile, urllib.request
+import gzip, hashlib, json, os, pathlib, re, shutil, subprocess, tarfile, urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / 'openwrt'
@@ -58,11 +58,57 @@ if not MODERN:
     mk.write_text(text[:match.start()]+patched+text[match.end():])
 
 # Ship the two verified arm64 cores, with no subscriptions or personal settings.
+def resolve_core_asset(key, spec):
+    """解析内核下载地址。
+
+    滚动发布（如 vernesong/mihomo 的 Prerelease-Alpha）会不断替换资产文件名，
+    写死 URL 必然 404。这里允许用 repo/release/asset_pattern 在构建时解析当前文件；
+    仍兼容原来的 url + sha256 固定写法。
+    """
+    if 'url' in spec:
+        return spec['url'], spec.get('sha256')
+    repo, tag, pattern = spec['repo'], spec['release'], spec['asset_pattern']
+    headers = {'Accept': 'application/vnd.github+json', 'User-Agent': 'n60-build'}
+    token = os.environ.get('GH_TOKEN') or os.environ.get('GITHUB_TOKEN')
+    if token:
+        headers['Authorization'] = 'Bearer ' + token
+    rx = re.compile(pattern)
+    names = []
+    # 首选 API；拿不到（无 token 限流、权限不足等）就退回 release 页面解析
+    try:
+        url = f'https://api.github.com/repos/{repo}/releases/tags/{tag}'
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            rel = json.load(resp)
+        matches = [a for a in rel.get('assets', []) if rx.match(a['name'])]
+        matches.sort(key=lambda a: a.get('created_at', ''), reverse=True)
+        names = [a['name'] for a in matches]
+        print(f'{key}: 通过 API 解析（{len(names)} 个匹配）', flush=True)
+    except Exception as exc:
+        print(f'{key}: API 解析失败（{exc}），改用 release 页面解析', flush=True)
+        page = f'https://github.com/{repo}/releases/expanded_assets/{tag}'
+        req = urllib.request.Request(page, headers={'User-Agent': 'n60-build'})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            html = resp.read().decode('utf-8', 'replace')
+        found = re.findall(rf'/{re.escape(repo)}/releases/download/{re.escape(tag)}/([^"?#\\]+)', html)
+        names = sorted({n for n in found if rx.match(n)})
+
+    assert names, f'{key}: {repo}@{tag} 中没有匹配 {pattern} 的资产'
+    chosen = names[0]
+    dl = f'https://github.com/{repo}/releases/download/{tag}/{chosen}'
+    print(f'{key}: 解析到 {chosen}', flush=True)
+    return dl, spec.get('sha256')
+
 for key in (['smart_core'] if MODERN else ['smart_core','adguard_core']):
     spec=LOCK[key]
+    dl_url,dl_sha=resolve_core_asset(key,spec)
     archive=ROOT/(key+'.download')
-    run('curl','--fail','--location','--retry','4','--max-time','180','--output',str(archive),spec['url'])
-    assert hashlib.sha256(archive.read_bytes()).hexdigest()==spec['sha256'], f'{key} checksum mismatch'
+    run('curl','--fail','--location','--retry','4','--max-time','180','--output',str(archive),dl_url)
+    actual=hashlib.sha256(archive.read_bytes()).hexdigest()
+    if dl_sha:
+        assert actual==dl_sha, f'{key} checksum mismatch'
+    else:
+        print(f'{key}: SHA256={actual}（未固定，仅记录用于追溯）', flush=True)
     if key=='smart_core':
         dest=SRC/'files/etc/openclash/core/clash_meta'
         dest.parent.mkdir(parents=True,exist_ok=True)
