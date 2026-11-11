@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Prepare a pinned N60 Pro 2 GiB build; never reads router backups."""
-import gzip, hashlib, json, os, pathlib, re, shutil, subprocess, tarfile, urllib.request
+import gzip, hashlib, json, os, pathlib, re, shutil, subprocess, urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / 'openwrt'
@@ -26,7 +26,7 @@ feeds['istore']=LOCK['istore']
 run('./scripts/feeds','update','-a',cwd=SRC)
 run('./scripts/feeds','install','-a',cwd=SRC)
 
-for key, dest in [('openclash','openclash-src'),('adguard_luci','luci-app-adguardhome'),('argon','luci-theme-argon')] + [(k,k+'-src') for k in LOCK.get('extra_packages',[])]:
+for key, dest in [('openclash','openclash-src'),('argon','luci-theme-argon')] + [(k,k+'-src') for k in LOCK.get('extra_packages',[])]:
     checkout(LOCK[key], SRC/'package/custom'/dest)
 # Feed copies of the legacy Argon packages must not shadow the pinned v3 theme.
 # The v3 theme itself owns the argon-config translation package; leaving the
@@ -99,7 +99,7 @@ def resolve_core_asset(key, spec):
     print(f'{key}: 解析到 {chosen}', flush=True)
     return dl, spec.get('sha256')
 
-for key in (['smart_core'] if MODERN else ['smart_core','adguard_core']):
+for key in (['smart_core'] if MODERN else ['smart_core']):
     spec=LOCK[key]
     dl_url,dl_sha=resolve_core_asset(key,spec)
     archive=ROOT/(key+'.download')
@@ -109,17 +109,9 @@ for key in (['smart_core'] if MODERN else ['smart_core','adguard_core']):
         assert actual==dl_sha, f'{key} checksum mismatch'
     else:
         print(f'{key}: SHA256={actual}（未固定，仅记录用于追溯）', flush=True)
-    if key=='smart_core':
-        dest=SRC/'files/etc/openclash/core/clash_meta'
-        dest.parent.mkdir(parents=True,exist_ok=True)
-        with gzip.open(archive,'rb') as src, dest.open('wb') as dst: shutil.copyfileobj(src,dst)
-    else:
-        dest=SRC/'files/usr/bin/AdGuardHome/AdGuardHome'
-        dest.parent.mkdir(parents=True,exist_ok=True)
-        with tarfile.open(archive,'r:gz') as tar:
-            members=[m for m in tar.getmembers() if m.isfile() and m.name.removeprefix('./')=='AdGuardHome/AdGuardHome']
-            assert len(members)==1, 'Unexpected AdGuard archive layout'
-            with tar.extractfile(members[0]) as src, dest.open('wb') as dst: shutil.copyfileobj(src,dst)
+    dest=SRC/'files/etc/openclash/core/clash_meta'
+    dest.parent.mkdir(parents=True,exist_ok=True)
+    with gzip.open(archive,'rb') as src, dest.open('wb') as dst: shutil.copyfileobj(src,dst)
     dest.chmod(0o755)
     archive.unlink()
 
@@ -140,16 +132,12 @@ uci commit network
 uci -q set openclash.config.enable=0
 uci -q set openclash.config.core_type=Smart
 uci -q commit openclash
-uci -q set AdGuardHome.AdGuardHome.enabled=0
-uci -q set AdGuardHome.AdGuardHome.redirect=none
-uci -q commit AdGuardHome
 uci -q set bandix.traffic.enabled=1
 uci -q set bandix.traffic.traffic_enable_storage=0
 uci -q set bandix.general.data_dir=/tmp/bandix
 uci -q set bandix.general.tc_backend=netlink
 uci -q commit bandix
-# Point OpenClash core/providers/rules at tmpfs; never hardcode the disk.
-# /usr/sbin/openclash-datadir.sh seeds them from the disk when mounted.
+# 外接硬盘空闲 10 分钟后自动停转；由 hd-idle 服务执行。
 uci -q set hd-idle.@hd-idle[0].disk=sda
 uci -q set hd-idle.@hd-idle[0].enabled=1
 uci -q set hd-idle.@hd-idle[0].idle_time_interval=10
@@ -179,22 +167,17 @@ else
     uci -q set uhttpd.main.redirect_https=0
 fi
 uci -q commit uhttpd
-for svc in openclash AdGuardHome mosdns ksmbd watchcat taskplan; do
+for svc in openclash mosdns ksmbd watchcat taskplan; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc disable
 done
 for svc in bandix collectd hd-idle; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc enable
 done
-# Pick data dirs by disk presence, then stage OpenClash onto tmpfs.
+# 按外接硬盘是否在线选数据目录，再把 OpenClash 铺到内存盘。
 [ -x /usr/sbin/bandix-datadir.sh ] && /usr/sbin/bandix-datadir.sh
 [ -x /usr/sbin/openclash-datadir.sh ] && /usr/sbin/openclash-datadir.sh
 exit 0
 ''')
-if MODERN:
-    defaults.write_text(defaults.read_text().replace(
-        'uci -q commit AdGuardHome',
-        'uci -q set AdGuardHome.AdGuardHome.binpath=/usr/bin/AdGuardHome\nuci -q commit AdGuardHome',
-    ))
 defaults.chmod(0o755)
 
 # 数据目录选择脚本：镜像不假定一定有外接硬盘，两处都做在线检测。

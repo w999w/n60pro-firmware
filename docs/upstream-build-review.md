@@ -16,6 +16,8 @@
 
 ## 插件、默认值与工作流
 
+
+> **后续变更（2026-11-11）**：AdGuard Home 已从构建中完全移除（`config/extra.config`、`source-lock.json`、`prepare.py`、`collect.py` 均不再引用），下文中关于 AdGuard 的路径说明仅作历史记录，不再适用。
 - OpenClash 锁定版本明确识别 `core_type=Smart`，使用 `/etc/openclash/core/clash_meta`；AdGuardHome 锁定版本默认核心路径为 `/usr/bin/AdGuardHome/AdGuardHome`。本地两个内置核心的路径与之吻合；下载同时校验锁定 SHA256。当前准备脚本也已兼容 AdGuard 压缩包中 `./AdGuardHome/AdGuardHome` 的路径前缀。[OpenClash init](https://github.com/vernesong/OpenClash/blob/e553e82e01c697aefbe1555261a503f425e00ccd/luci-app-openclash/root/etc/init.d/openclash)、[AdGuardHome init](https://github.com/rufengsuixing/luci-app-adguardhome/blob/37fdf502b99328b37c9ef4c4387f069f67253f85/root/etc/init.d/AdGuardHome)
 - 本地首次启动脚本明确写入 LAN `192.168.100.1/24`；OpenClash 和 AdGuardHome 默认关闭，未内置订阅/个人配置。extra.config 选择 iStore、两款插件、常用 USB/文件系统、SMB、定时唤醒、WireGuard、终端及 MTK 加速。prepare.py 会在 `make defconfig` 后校验关键符号，但“之前常用功能”的完整一致性仍应以最终 `build.config`/manifest 与用户旧清单比较，不能由这些选择行全部推定。
 - 固件、feeds、插件均锁定提交；feeds 来源与上游 feeds.conf.default 的四个项目一致。README 的快速开始仍写另一个仓库名，实际构建应以 source-lock.json 的指定仓库和提交为准。[上游 feeds](https://github.com/padavanonly/immortalwrt-mt798x-6.6/blob/ec9ef10efc65da1e6d1de4e2c043c0e13d08eed8/feeds.conf.default)、[上游 README](https://github.com/padavanonly/immortalwrt-mt798x-6.6/blob/ec9ef10efc65da1e6d1de4e2c043c0e13d08eed8/README.md)

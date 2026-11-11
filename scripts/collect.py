@@ -16,13 +16,7 @@ assert manifest, 'N60 Pro package manifest missing'
 packages={line.split(' - ')[0] for line in manifest.read_text().splitlines()}
 required={line.split('=')[0].removeprefix('CONFIG_PACKAGE_') for line in (root/'config/extra.config').read_text().splitlines() if line.startswith('CONFIG_PACKAGE_') and line.endswith('=y')}
 assert not required-packages, f'Mandatory packages absent from image: {sorted(required-packages)}'
-for p in (['etc/openclash/core/clash_meta'] if images[0].suffix=='.itb' else ['etc/openclash/core/clash_meta','usr/bin/AdGuardHome/AdGuardHome']):
-    assert (root/'openwrt/files'/p).stat().st_size>1000000, f'Core missing: {p}'
-if images[0].suffix=='.itb':
-    # AdGuard Home 只在显式启用时才进镜像（config/extra.config 里没有它），
-    # 所以这里不能无条件断言，只在配置确实选中它时校验。
-    if 'adguardhome' in required:
-        assert 'adguardhome' in packages, 'AdGuard Home package missing from manifest'
+assert (root/'openwrt/files/etc/openclash/core/clash_meta').stat().st_size>1000000, 'Clash core missing'
 for path in target.iterdir():
     if path.is_file() and (path in images or path.suffix in ['.manifest','.buildinfo','.json']): shutil.copy2(path,out/path.name)
 names=[]
