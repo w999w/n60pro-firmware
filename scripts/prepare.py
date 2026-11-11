@@ -148,6 +148,13 @@ uci -q set bandix.traffic.traffic_enable_storage=0
 uci -q set bandix.general.data_dir=/tmp/bandix
 uci -q set bandix.general.tc_backend=netlink
 uci -q commit bandix
+# Point OpenClash core/providers/rules at tmpfs; never hardcode the disk.
+# /usr/sbin/openclash-datadir.sh seeds them from the disk when mounted.
+uci -q set hd-idle.@hd-idle[0].disk=sda
+uci -q set hd-idle.@hd-idle[0].enabled=1
+uci -q set hd-idle.@hd-idle[0].idle_time_interval=10
+uci -q set hd-idle.@hd-idle[0].idle_time_unit=minutes
+uci -q commit hd-idle
 # HTTPS on by default: generate a self-signed cert first, then decide whether
 # to force the redirect. uhttpd appends -q whenever listen_https is non-empty,
 # without checking that the cert is usable; redirecting to a dead 443 would
@@ -172,12 +179,15 @@ else
     uci -q set uhttpd.main.redirect_https=0
 fi
 uci -q commit uhttpd
-for svc in openclash AdGuardHome mosdns ksmbd watchcat hd-idle taskplan; do
+for svc in openclash AdGuardHome mosdns ksmbd watchcat taskplan; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc disable
 done
-for svc in bandix collectd; do
+for svc in bandix collectd hd-idle; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc enable
 done
+# Pick data dirs by disk presence, then stage OpenClash onto tmpfs.
+[ -x /usr/sbin/bandix-datadir.sh ] && /usr/sbin/bandix-datadir.sh
+[ -x /usr/sbin/openclash-datadir.sh ] && /usr/sbin/openclash-datadir.sh
 exit 0
 ''')
 if MODERN:
@@ -186,6 +196,78 @@ if MODERN:
         'uci -q set AdGuardHome.AdGuardHome.binpath=/usr/bin/AdGuardHome\nuci -q commit AdGuardHome',
     ))
 defaults.chmod(0o755)
+
+# 数据目录选择脚本：镜像不假定一定有外接硬盘，两处都做在线检测。
+datadir_helpers=SRC/'files/usr/sbin'
+datadir_helpers.mkdir(parents=True,exist_ok=True)
+(datadir_helpers/'bandix-datadir.sh').write_text('''#!/bin/sh
+# Prefer the disk when it is mounted so history persists; fall back to tmpfs.
+DISK_DIR="/mnt/sda1/bandix"
+TMP_DIR="/tmp/bandix"
+want="$TMP_DIR"
+if mountpoint -q /mnt/sda1 2>/dev/null; then
+	mkdir -p "$DISK_DIR" 2>/dev/null && want="$DISK_DIR"
+fi
+mkdir -p "$want" 2>/dev/null
+current=$(uci -q get bandix.general.data_dir)
+if [ "$current" != "$want" ]; then
+	uci -q set bandix.general.data_dir="$want"
+	if [ "$want" = "$DISK_DIR" ]; then
+		uci -q set bandix.traffic.traffic_enable_storage=1
+	else
+		uci -q set bandix.traffic.traffic_enable_storage=0
+	fi
+	uci -q commit bandix
+fi
+exit 0
+''')
+(datadir_helpers/'openclash-datadir.sh').write_text('''#!/bin/sh
+# Stage OpenClash core/providers/rules on tmpfs and point the symlinks at it.
+# Source: the disk copy when mounted, otherwise the flash seed copy.
+TMP_ROOT="/tmp/openclash"
+DISK_ROOT="/mnt/sda1/openclash"
+SEED_ROOT="/etc/openclash/_seed"
+for d in core providers rules data; do mkdir -p "$TMP_ROOT/$d" 2>/dev/null; done
+copy_missing() {
+	[ -d "$1" ] || return 0
+	for f in "$1"/*; do
+		[ -e "$f" ] || continue
+		b=$(basename "$f")
+		[ -e "$2/$b" ] || cp -a "$f" "$2/" 2>/dev/null
+	done
+}
+if mountpoint -q /mnt/sda1 2>/dev/null && [ -d "$DISK_ROOT" ]; then
+	copy_missing "$DISK_ROOT/core" "$TMP_ROOT/core"
+	copy_missing "$DISK_ROOT/providers" "$TMP_ROOT/providers"
+	copy_missing "$DISK_ROOT/rules" "$TMP_ROOT/rules"
+else
+	copy_missing "$SEED_ROOT/core" "$TMP_ROOT/core"
+	copy_missing "$SEED_ROOT/providers" "$TMP_ROOT/providers"
+	copy_missing "$SEED_ROOT/rules" "$TMP_ROOT/rules"
+fi
+cd /etc/openclash 2>/dev/null || exit 0
+for pair in "core:core" "proxy_provider:providers" "rule_provider:rules"; do
+	link="${pair%%:*}"; target="${pair##*:}"
+	if [ -h "$link" ] || [ -e "$link" ]; then rm -rf "$link" 2>/dev/null || continue; fi
+	ln -sf "$TMP_ROOT/$target" "$link"
+done
+exit 0
+''')
+for f in datadir_helpers.iterdir(): f.chmod(0o755)
+
+# 插拔硬盘时重新判定数据目录，只有真的变了才重启 bandix。
+hotplug=SRC/'files/etc/hotplug.d/block/90-bandix-datadir'
+hotplug.parent.mkdir(parents=True,exist_ok=True)
+hotplug.write_text('''#!/bin/sh
+[ -x /usr/sbin/bandix-datadir.sh ] || exit 0
+case "$DEVNAME" in sda*) ;; *) exit 0 ;; esac
+before=$(uci -q get bandix.general.data_dir)
+/usr/sbin/bandix-datadir.sh
+[ "$before" = "$(uci -q get bandix.general.data_dir)" ] && exit 0
+[ -x /etc/init.d/bandix ] && /etc/init.d/bandix restart >/dev/null 2>&1
+exit 0
+''')
+hotplug.chmod(0o755)
 run('make','defconfig',cwd=SRC)
 config=(SRC/'.config').read_text()
 
