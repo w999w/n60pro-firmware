@@ -137,7 +137,7 @@ uci -q set bandix.traffic.traffic_enable_storage=0
 uci -q set bandix.general.data_dir=/tmp/bandix
 uci -q set bandix.general.tc_backend=netlink
 uci -q commit bandix
-# 外接硬盘空闲 10 分钟后自动停转；由 hd-idle 服务执行。
+# Spin the external disk down after 10 idle minutes (handled by hd-idle).
 uci -q set hd-idle.@hd-idle[0].disk=sda
 uci -q set hd-idle.@hd-idle[0].enabled=1
 uci -q set hd-idle.@hd-idle[0].idle_time_interval=10
@@ -173,7 +173,7 @@ done
 for svc in bandix collectd hd-idle; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc enable
 done
-# 按外接硬盘是否在线选数据目录，再把 OpenClash 铺到内存盘。
+# Pick data dirs by disk presence, then stage OpenClash onto tmpfs.
 [ -x /usr/sbin/bandix-datadir.sh ] && /usr/sbin/bandix-datadir.sh
 [ -x /usr/sbin/openclash-datadir.sh ] && /usr/sbin/openclash-datadir.sh
 exit 0
