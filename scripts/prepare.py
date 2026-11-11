@@ -235,12 +235,14 @@ fi
 exit 0
 ''')
 (datadir_helpers/'openclash-datadir.sh').write_text('''#!/bin/sh
-# Stage OpenClash core/providers/rules on tmpfs and point the symlinks at it.
-# Source: the disk copy when mounted, otherwise the flash seed copy.
+# Stage the volatile OpenClash data (providers/rules) on tmpfs and point the
+# symlinks there. The clash binary stays on flash:
+# it is a read-only static file that the image already ships at
+# /etc/openclash/core/clash_meta. Symlinking it to tmpfs was wrong - tmpfs is
+# wiped on boot, which forced an extra flash copy just to survive reboots.
 TMP_ROOT="/tmp/openclash"
 DISK_ROOT="/mnt/sda1/openclash"
-SEED_ROOT="/etc/openclash/_seed"
-for d in core providers rules data; do mkdir -p "$TMP_ROOT/$d" 2>/dev/null; done
+for d in providers rules data; do mkdir -p "$TMP_ROOT/$d" 2>/dev/null; done
 copy_missing() {
 	[ -d "$1" ] || return 0
 	for f in "$1"/*; do
@@ -249,21 +251,28 @@ copy_missing() {
 		[ -e "$2/$b" ] || cp -a "$f" "$2/" 2>/dev/null
 	done
 }
+# Prefer the disk copy when present: the user may have customised providers.
 if mountpoint -q /mnt/sda1 2>/dev/null && [ -d "$DISK_ROOT" ]; then
-	copy_missing "$DISK_ROOT/core" "$TMP_ROOT/core"
 	copy_missing "$DISK_ROOT/providers" "$TMP_ROOT/providers"
 	copy_missing "$DISK_ROOT/rules" "$TMP_ROOT/rules"
-else
-	copy_missing "$SEED_ROOT/core" "$TMP_ROOT/core"
-	copy_missing "$SEED_ROOT/providers" "$TMP_ROOT/providers"
-	copy_missing "$SEED_ROOT/rules" "$TMP_ROOT/rules"
 fi
 cd /etc/openclash 2>/dev/null || exit 0
-for pair in "core:core" "proxy_provider:providers" "rule_provider:rules"; do
+# Only volatile dirs are relinked; core must stay a real directory.
+for pair in "proxy_provider:providers" "rule_provider:rules"; do
 	link="${pair%%:*}"; target="${pair##*:}"
 	if [ -h "$link" ] || [ -e "$link" ]; then rm -rf "$link" 2>/dev/null || continue; fi
 	ln -sf "$TMP_ROOT/$target" "$link"
 done
+# Self-heal: if a previous run left core as a symlink into tmpfs, restore the
+# real directory so the shipped binary is used directly.
+if [ -h core ]; then
+	rm -f core 2>/dev/null
+	mkdir -p core
+	[ -f /tmp/openclash/core/clash_meta ] && cp -f /tmp/openclash/core/clash_meta core/ 2>/dev/null
+	[ -f "$DISK_ROOT/core/clash_meta" ] && [ ! -f core/clash_meta ] && \
+		cp -f "$DISK_ROOT/core/clash_meta" core/ 2>/dev/null
+	chmod 755 core/clash_meta 2>/dev/null
+fi
 exit 0
 ''')
 for f in datadir_helpers.iterdir(): f.chmod(0o755)
