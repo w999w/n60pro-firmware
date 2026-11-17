@@ -173,11 +173,54 @@ done
 for svc in bandix collectd hd-idle; do
     [ ! -x /etc/init.d/$svc ] || /etc/init.d/$svc enable
 done
+# ---- LEDs: power / net(E) / USB / data / WiFi, left to right ----
+# Pure GPIO LEDs (max_brightness=1, no PWM anywhere), so brightness is not
+# adjustable; only on/off and blink rate. Keep the stock mdio port LEDs.
+uci -q set system.led_power=led
+uci -q set system.led_power.name='Power'
+uci -q set system.led_power.sysfs='blue:power'
+uci -q set system.led_power.trigger='default-on'
+uci -q set system.led_net=led
+uci -q set system.led_net.name='Net'
+uci -q set system.led_net.sysfs='blue:wan'
+uci -q set system.led_net.trigger='netdev'
+uci -q set system.led_net.mode='link'
+uci -q set system.led_net.dev='eth1'
+uci -q set system.led_usb=led
+uci -q set system.led_usb.name='USB'
+uci -q set system.led_usb.sysfs='blue:usb'
+uci -q set system.led_usb.trigger='none'
+uci -q set system.led_usb.default='0'
+uci -q set system.led_data=led
+uci -q set system.led_data.name='Data'
+uci -q set system.led_data.sysfs='blue:wps'
+uci -q set system.led_data.trigger='timer'
+uci -q set system.led_data.delayon='200'
+uci -q set system.led_data.delayoff='600'
+uci -q set system.led_wlan=led
+uci -q set system.led_wlan.name='WLAN'
+uci -q set system.led_wlan.sysfs='blue:wlan'
+uci -q set system.led_wlan.trigger='default-on'
+uci -q commit system
+# usbled runs after the led service: led resets blue:usb to 0 on start while
+# USB hotplug fires earlier, so the USB lamp would stay dark after reboot.
+[ -x /etc/init.d/usbled ] && /etc/init.d/usbled enable
 # Pick data dirs by disk presence, then stage OpenClash onto tmpfs.
 # Use the boot variant here: it only edits config and never races the
 # about-to-start bandix service for port 8686.
 [ -x /usr/sbin/bandix-datadir-boot.sh ] && /usr/sbin/bandix-datadir-boot.sh
 [ -x /usr/sbin/openclash-datadir.sh ] && /usr/sbin/openclash-datadir.sh
+# Move the Bandix panel from Network to Statistics if the stock menu is still
+# in place; the shipped menu file is patched below, this only re-applies it
+# after package upgrades that may restore the original.
+if [ -f /usr/share/luci/menu.d/luci-app-bandix.json ] && \
+   ! grep -q 'admin/statistics/bandix' /usr/share/luci/menu.d/luci-app-bandix.json; then
+    sed -i 's#"admin/network/bandix"#"admin/statistics/bandix"#; \
+            s#"path": "admin/network/bandix/index"#"path": "admin/statistics/bandix/index"#; \
+            s#"admin/network/bandix/#"admin/statistics/bandix/#g' \
+        /usr/share/luci/menu.d/luci-app-bandix.json
+    rm -f /tmp/luci-indexcache*
+fi
 exit 0
 ''')
 defaults.chmod(0o755)
@@ -292,6 +335,99 @@ sleep 2
 exit 0
 ''')
 hotplug.chmod(0o755)
+
+# USB 指示灯：内核没有 usbdev 触发器可用，只能靠 hotplug 脚本点亮。
+usb_led=SRC/'files/etc/hotplug.d/usb/10-usb-led'
+usb_led.parent.mkdir(parents=True,exist_ok=True)
+usb_led.write_text('''#!/bin/sh
+# Light blue:usb while any non-hub USB device is present, else turn it off.
+LED=/sys/class/leds/blue:usb/brightness
+[ -e "$LED" ] || exit 0
+
+present=0
+for dev in /sys/bus/usb/devices/*; do
+	[ -f "$dev/idVendor" ] || continue
+	# bDeviceClass 09 = Hub, skip root hubs
+	[ "$(cat "$dev/bDeviceClass" 2>/dev/null)" = "09" ] && continue
+	present=1
+	break
+done
+
+echo "$present" > "$LED" 2>/dev/null
+exit 0
+''')
+usb_led.chmod(0o755)
+
+# usbled 在 led 服务(96)之后运行(97)，重新求值 USB 灯，
+# 否则 led 启动时把 blue:usb 复位为 0，重启后该灯不亮。
+usbled=SRC/'files/etc/init.d/usbled'
+usbled.parent.mkdir(parents=True,exist_ok=True)
+usbled.write_text('''#!/bin/sh /etc/rc.common
+# Re-evaluate the USB LED after the led service started: led resets
+# blue:usb to 0 on start, while USB hotplug events fire earlier.
+START=97
+STOP=10
+
+start() {
+	[ -x /etc/hotplug.d/usb/10-usb-led ] && /etc/hotplug.d/usb/10-usb-led
+}
+
+boot() { start; }
+restart() { start; }
+''')
+usbled.chmod(0o755)
+
+# Bandix 面板挪到「统计」下，与「图表」「设置」并列。
+bandix_menu=SRC/'files/usr/share/luci/menu.d/luci-app-bandix.json'
+bandix_menu.parent.mkdir(parents=True,exist_ok=True)
+bandix_menu.write_text('''{
+	"admin/statistics/bandix": {
+		"title": "Bandix",
+		"order": 15,
+		"action": {
+			"type": "alias",
+			"path": "admin/statistics/bandix/index"
+		},
+		"depends": {
+			"acl": [ "luci-app-bandix" ],
+			"uci": { "bandix": true }
+		}
+	},
+	"admin/statistics/bandix/index": {
+		"title": "Status",
+		"order": 10,
+		"action": {
+			"type": "view",
+			"path": "bandix/index"
+		}
+	},
+	"admin/statistics/bandix/connection": {
+		"title": "Connections",
+		"order": 15,
+		"action": {
+			"type": "view",
+			"path": "bandix/connection"
+		}
+	},
+	"admin/statistics/bandix/dns": {
+		"title": "DNS",
+		"order": 20,
+		"action": {
+			"type": "view",
+			"path": "bandix/dns"
+		}
+	},
+	"admin/statistics/bandix/settings": {
+		"title": "Settings",
+		"order": 25,
+		"action": {
+			"type": "view",
+			"path": "bandix/settings"
+		}
+	}
+}
+''')
+bandix_menu.chmod(0o644)
 run('make','defconfig',cwd=SRC)
 config=(SRC/'.config').read_text()
 
